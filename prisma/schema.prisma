@@ -1,0 +1,477 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum AttributeType {
+  STRING
+  INT
+  DECIMAL
+  BOOLEAN
+  DATE
+}
+
+// --- Core Models ---
+
+model User {
+  id                String            @id @default(cuid())
+  name              String
+  email             String?           @unique
+  password          String?
+  avatar            String?
+  isActive          Boolean           @default(true) @map("is_active")
+  createdAt         DateTime?         @default(now()) @map("created_at")
+  updatedAt         DateTime?         @updatedAt @map("updated_at")
+  roles             Role[]            @relation("UserRoles")
+  reviews           Review[]
+  cart              Cart?
+  orders            Order[]
+  products          Product[]
+  payments          Payment[]
+  shippingAddresses ShippingAddress[]
+  googleId          String?           @unique @map("google_id")
+  isEmailVerified   Boolean           @default(false) @map("is_email_verified")
+  isPhoneVerified   Boolean           @default(false) @map("is_phone_verified")
+  wishlist          Wishlist[]
+
+  @@map("users")
+}
+
+model Role {
+  id    String @id @default(cuid())
+  name  String @unique
+  users User[] @relation("UserRoles")
+
+  @@map("roles")
+}
+
+model Banner {
+  id            String  @id @default(cuid())
+  title         String
+  description   String
+  image         String
+  buttonText    String? @map("button_text")
+  buttonLink    String? @map("button_link")
+  isActive      Boolean @default(true) @map("is_active")
+  position      String?
+  displayImage  String? @map("display_image")
+  displayNumber String? @map("display_number")
+  displayText   String? @map("display_text")
+
+  @@map("banners")
+}
+
+model Category {
+  id    String  @id @default(cuid())
+  name  String
+  slug  String  @unique
+  image String?
+
+  subcategories       Subcategory[]
+  Product             Product[]
+  isActive            Boolean               @default(true) @map("is_active")
+  createdAt           DateTime              @default(now()) @map("created_at")
+  AttributeDefinition AttributeDefinition[]
+
+  @@map("categories")
+}
+
+model Subcategory {
+  id    String  @id @default(cuid())
+  name  String
+  slug  String  @unique
+  image String?
+
+  categoryId String?   @map("category_id")
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  products       Product[]
+  customizations Customization[]
+  isActive       Boolean         @default(true) @map("is_active")
+  createdAt      DateTime        @default(now()) @map("created_at")
+
+  @@map("subcategories")
+}
+
+model Customization {
+  id   String @id @default(cuid())
+  name String
+
+  image String?
+
+  subcategoryId String      @map("sub_category_id")
+  subcategory   Subcategory @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
+
+  subCustomizations SubCustomization[]
+
+  @@map("customizations")
+}
+
+model SubCustomization {
+  id   String @id @default(cuid())
+  name String
+
+  image String
+
+  customizationId String        @map("customization_id")
+  customization   Customization @relation(fields: [customizationId], references: [id], onDelete: Cascade)
+
+  @@map("sub_customizations")
+}
+
+// --- Product and Variant Models ---
+
+model Product {
+  id                String                  @id @default(cuid())
+  name              String
+  slug              String                  @unique
+  description       String
+  featureImage      String?                 @map("feature_image")
+  price             Float                   @default(0)
+  isActive          Boolean                 @default(true) @map("is_active")
+  isDeleted         Boolean                 @default(false) @map("is_deleted")
+  userId            String                  @map("user_id")
+  user              User                    @relation(fields: [userId], references: [id])
+  categoryId        String                  @map("category_id")
+  category          Category                @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  subcategoryId     String?                 @map("sub_category_id")
+  subcategory       Subcategory?            @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
+  rating            Float                   @default(0)
+  reviews           Review[]
+  tags              Tag[]                   @relation("ProductTags")
+  coupons           Coupon[]                @relation("product_coupons")
+  media             ProductMedia[]
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+  cartItems         CartItem[]
+  stock             Stock?
+  orderItems        OrderItem[]
+  isFeatured        Boolean                 @default(false) @map("is_featured")
+  wishlistedBy      Wishlist[]
+  seoMeta           SeoMeta?                @relation(fields: [seoMetaId], references: [id])
+  seoMetaId         String?                 @unique @map("seo_meta_id")
+  attributes        ProductAttributeValue[]
+
+  @@map("products")
+}
+
+model ProductAttributeValue {
+  id                    String    @id @default(uuid())
+  productId             String
+  attributeDefinitionId String      @map("attribute_definition_id")
+  valueString           String?     @map("value_string")
+  valueInt              Int?        @map("value_int")
+  valueDecimal          Decimal?    @map("value_decimal")
+  valueBool             Boolean?    @map("value_bool")
+  valueDate             DateTime?   @map("value_date")
+
+  product             Product             @relation(fields: [productId], references: [id])
+  attributeDefinition AttributeDefinition @relation(fields: [attributeDefinitionId], references: [id])
+
+  @@unique([productId, attributeDefinitionId])
+  @@map("product_attribute_values")
+  
+}
+
+model AttributeDefinition {
+  id         String        @id @default(uuid())
+  name       String
+  type       AttributeType
+  unit       String?
+  categoryId String?       @map("category_id")
+  category   Category?     @relation(fields: [categoryId], references: [id])
+
+  values ProductAttributeValue[]
+
+  @@map("attribute_definitions")
+}
+
+model Review {
+  id      String   @id @default(cuid())
+  rating  Float    @default(0.0)
+  comment String?
+  images  String[]
+  date    DateTime @default(now())
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("reviews")
+}
+
+model Tag {
+  id       String    @id @default(cuid())
+  name     String
+  products Product[] @relation("ProductTags")
+
+  @@map("tags")
+}
+
+model Cart {
+  id String @id @default(cuid())
+
+  userId String @unique @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String  @id @default(cuid())
+  cartId    String  @map("cart_id")
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  quantity  Int
+  total     Float
+  productId String  @map("product_id")
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@map("cart_items")
+}
+
+model Order {
+  id                String          @id @default(cuid())
+  userId            String?         @map("user_id")
+  user              User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status            OrderStatus     @default(PENDING)
+  totalAmount       Float           @map("total_amount")
+  items             OrderItem[]
+  payment           Payment?
+  shippingAddressId String
+  shippingAddress   ShippingAddress @relation("ShippingAddressRelation", fields: [shippingAddressId], references: [id])
+  billingAddressId  String
+  billingAddress    ShippingAddress @relation("BillingAddressRelation", fields: [billingAddressId], references: [id])
+  placedAt          DateTime        @default(now()) @map("placed_at")
+  deliveryDate      DateTime?       @map("delivery_date")
+  notes             String?         @map("notes")
+  isPaid            Boolean         @default(false) @map("is_paid")
+  isCancelled       Boolean         @default(false) @map("is_cancelled")
+  shippingMethod    String          @map("shipping_method")
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String  @map("order_id")
+  productId String  @map("product_id")
+  quantity  Int
+  price     Decimal @map("price") // price per unit at time of purchase
+  order     Order   @relation(fields: [orderId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+model Coupon {
+  id              String    @id @default(cuid())
+  code            String    @unique
+  expiryDate      DateTime? @map("expiry_date")
+  couponCount     Int       @default(0) @map("coupon_count")
+  discountAmount  Float?    @map("discount_amount")
+  discountPercent Float?    @map("discount_percent")
+  products        Product[] @relation("product_coupons")
+  type            String?
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@map("coupons")
+}
+
+model Blog {
+  id          String       @id @default(cuid())
+  title       String
+  slug        String       @unique
+  image       String?
+  description String?
+  categoryId  String       @map("category_id")
+  category    BlogCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  isActive  Boolean  @default(true) @map("is_active")
+  seoMeta   SeoMeta? @relation(fields: [seoMetaId], references: [id])
+  seoMetaId String?  @unique @map("seo_meta_id")
+
+  @@map("blogs")
+}
+
+model BlogCategory {
+  id    String @id @default(cuid())
+  title String
+  slug  String @unique
+
+  blogs    Blog[]
+  isActive Boolean @default(false) @map("is_active")
+
+  @@map("blog_categories")
+}
+
+model Payment {
+  id String @id @default(cuid())
+
+  method String
+  status PaymentStatus @default(PENDING) @map("payment_status")
+
+  amount Float
+
+  orderId   String    @unique @map("order_id")
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  isActive  Boolean   @default(false) @map("is_active")
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime? @default(now()) @map("created_at")
+  updatedAt DateTime? @updatedAt @map("updated_at")
+
+  @@map("payments")
+}
+
+// --- Product Media(Images and videos) ---
+model ProductMedia {
+  id        String  @id @default(cuid())
+  productId String  @map("product_id")
+  mediaType String  @map("media_type")
+  mediaUrl  String  @map("media_url")
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@index([productId]) // Index for faster lookups
+  @@map("product_media")
+}
+
+
+
+model Stock {
+  id        String   @id @default(uuid())
+  quantity  Int
+  product   Product  @relation(fields: [productId], references: [id])
+  productId String   @unique
+  updatedAt DateTime @updatedAt
+
+  @@map("stock")
+}
+
+model ShippingAddress {
+  id             String  @id @default(cuid())
+  fullName       String
+  phone          String
+  street         String
+  city           String
+  state          String
+  zipCode        String
+  country        String
+  userId         String
+  user           User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shippingOrders Order[] @relation("ShippingAddressRelation")
+  billingOrders  Order[] @relation("BillingAddressRelation")
+  isActive       Boolean @default(true) @map("is_active")
+
+  @@map("shipping_addresses")
+}
+
+model Wishlist {
+  id        String  @id @default(cuid())
+  user      User    @relation(fields: [userId], references: [id])
+  userId    String  @map("user_id")
+  product   Product @relation(fields: [productId], references: [id])
+  productId String  @map("product_id")
+  isActive  Boolean @default(true) @map("is_active")
+
+  @@unique([userId, productId])
+  @@map("wishlists")
+}
+
+model Newsletter {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("newsletters")
+}
+
+model Testimonial {
+  id          String   @id @default(uuid())
+  name        String
+  message     String
+  avatar      String?
+  designation String?
+  order       Int?     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("testimonials")
+}
+
+model SiteSettings {
+  id              String   @id @default(uuid())
+  siteName        String   @map("site_name")
+  siteDescription String?  @map("site_description")
+  defaultLanguage String   @default("en") @map("default_language")
+  faviconUrl      String?  @map("favicon_url")
+  logoUrl         String?  @map("logo_url")
+  footerLogoUrl   String?  @map("footer_logo_url")
+  contactEmail    String?  @map("contact_email")
+  phoneNumber     String?  @map("phone_number")
+  whatsappNumber  String?  @map("whatsapp_number")
+  address         String?  @map("address")
+  metaTitle       String?  @map("meta_title")
+  metaDescription String?  @map("meta_description")
+  metaKeywords    String?  @map("meta_keywords")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("site_setting")
+}
+
+model SocialMedia {
+  id        String   @id @default(uuid())
+  platform  String
+  url       String
+  iconUrl   String?  @map("icon_url")
+  isActive  Boolean  @default(true) @map("is_active")
+  order     Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("social_medias")
+}
+
+model SeoMeta {
+  id              String   @id @default(uuid())
+  model           String
+  metaTitle       String?  @map("meta_title")
+  metaDescription String?  @map("meta_description")
+  metaKeywords    String?  @map("meta_keywords")
+  metaRobots      String?  @map("meta_robot")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  blog            Blog?
+  Product         Product?
+
+  @@map("seo_metas")
+}
