@@ -29,6 +29,14 @@ const Messages = {
     NOT_FOUND: "Category not found",
     EXIST: "Category alredy exist"
   },
+    PRODUCT_ATTRIBUTE: {
+    CREATE_SUCCESS: "Product attribute created successfully",
+    UPDATE_SUCCESS: "Product attribute updated successfully",
+    DELETE_SUCCESS: "Product attribute deleted successfully",
+    FETCH_SUCCESS: "Product attribute fetch successfully",
+    NOT_FOUND: "Product attribute not found",
+    EXIST: "Product attribute alredy exist"
+  },
   SUB_CATEGORY: {
     CREATE_SUCCESS: " Subcategory created successfully",
     UPDATE_SUCCESS: "Subcategory updated successfully",
