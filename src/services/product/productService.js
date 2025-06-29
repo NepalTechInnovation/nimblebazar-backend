@@ -23,6 +23,7 @@ exports.createProduct = async (productData, userId) => {
                 metaRobots: productData.seoMeta.metaRobots
             }
         });
+
         const product = await prisma.product.create({
             data: {
                 featureImage: productData.featureImage,
@@ -53,6 +54,9 @@ exports.createProduct = async (productData, userId) => {
                         .filter(tag => tag.name && !tag.id)
                         .map(tag => ({ name: tag.name })),
                 },
+                attributes: {
+                    createMany: { data: productData.attributes },
+                },
                 userId: userId
 
             },
@@ -60,11 +64,14 @@ exports.createProduct = async (productData, userId) => {
                 media: true,
                 stock: true,
                 tags: true,
-               
+
                 category: {
                     include: {
                         subcategories: true
                     }
+                },
+                attributes: {
+                    include: { attributeDefinition: true },
                 },
                 user: {
                     select: { id: true, name: true, email: true }
@@ -108,6 +115,9 @@ exports.getAllProducts = async ({ page = 1, limit = 10, sort = 'desc', search = 
                         subcategories: true
                     }
                 },
+                attributes: {
+                    include: { attributeDefinition: true },
+                },
                 user: {
                     select: { id: true, name: true, email: true }
                 }
@@ -138,6 +148,9 @@ exports.getProductById = async (id, includeRelated = true) => {
 
         const include = includeRelated
             ? {
+                attributes: {
+                    include: { attributeDefinition: true },
+                },
                 media: true,
                 stock: true,
                 category: true,
@@ -175,7 +188,9 @@ exports.getProductBySlug = async (slug, includeRelated = true) => {
             ? {
                 media: true,
                 stock: true,
-                
+                attributes: {
+                    include: { attributeDefinition: true },
+                },
                 category: true,
                 subcategory: true,
                 tags: true,
@@ -209,7 +224,7 @@ exports.updateProduct = async (productId, productData, userId) => {
 
     const existingProduct = await prisma.product.findUnique({
         where: { id: productId },
-        include: { media: true},
+        include: { media: true },
     });
 
     if (!existingProduct) {
@@ -223,54 +238,85 @@ exports.updateProduct = async (productId, productData, userId) => {
         }
     }
 
-
-    const updatedProduct = await prisma.product.update({
-        where: { id: productId },
-        data: {
-            name: productData.name,
-            price: productData.price,
-            description: productData.description || '',
-
-            slug: await generateUniqueSlug(productData.name, 'product', prisma),
-
-            seoMeta: {
-                upsert: {
-                    update: {
-                        metaTitle: productData.seoMeta?.metaTitle,
-                        metaDescription: productData.seoMeta?.metaDescription,
-                        metaKeywords: productData.seoMeta?.metaKeywords,
-                        metaRobots: productData.seoMeta?.metaRobots,
-                    },
-                    create: {
-                        model: "Product",
-                        metaTitle: productData.seoMeta?.metaTitle,
-                        metaDescription: productData.seoMeta?.metaDescription,
-                        metaKeywords: productData.seoMeta?.metaKeywords,
-                        metaRobots: productData.seoMeta?.metaRobots,
+    const updatedProduct = await prisma.$transaction(async (tx) => {
+        await tx.product.update({
+            where: { id: productId },
+            data: {
+                name: productData.name,
+                price: productData.price,
+                description: productData.description || '',
+                isFeatured: productData.isFeatured,
+                isActive: productData.isActive,
+                slug: await generateUniqueSlug(productData.name, 'product', prisma),
+                seoMeta: {
+                    upsert: {
+                        update: {
+                            metaTitle: productData.seoMeta?.metaTitle,
+                            metaDescription: productData.seoMeta?.metaDescription,
+                            metaKeywords: productData.seoMeta?.metaKeywords,
+                            metaRobots: productData.seoMeta?.metaRobots,
+                        },
+                        create: {
+                            model: "Product",
+                            metaTitle: productData.seoMeta?.metaTitle,
+                            metaDescription: productData.seoMeta?.metaDescription,
+                            metaKeywords: productData.seoMeta?.metaKeywords,
+                            metaRobots: productData.seoMeta?.metaRobots,
+                        },
                     },
                 },
-            },
-            media: {
-                deleteMany: {},
-                create: productData.media.map((item) => ({
-                    mediaUrl: item.url,
-                    mediaType: item.type,
-                })),
-            },
-            category: {
-                connect: { id: productData.categoryId }
-            },
+                media: {
+                    deleteMany: {},
+                    create: productData.media.map((item) => ({
+                        mediaUrl: item.url,
+                        mediaType: item.type,
+                    })),
+                },
+                category: {
+                    connect: { id: productData.categoryId }
+                },
 
-        },
-        include: {
-            media: true,
-            tags: true,
-            stock: true,
-            category: true,
-            seoMeta: true
-        },
+            },
+            include: {
+                media: true,
+                tags: true,
+                stock: true,
+                category: true,
+                seoMeta: true,
+                attributes: {
+                    include: { attributeDefinition: true },
+                },
+            },
+        });
+        for (const attr of productData.attributes) {
+            await tx.productAttributeValue.upsert({
+                where: {
+                    productId_attributeDefinitionId: {
+                        productId,
+                        attributeDefinitionId: attr.attributeDefinitionId,
+                    },
+                },
+                update: {
+                    valueString: attr.valueString ?? null,
+                    valueInt: attr.valueInt ?? null,
+                    valueBool: attr.valueBool ?? null,
+                    valueDate: attr.valueDate ? new Date(attr.valueDate) : null,
+                    valueDecimal: attr.valueDecimal ?? null,
+                },
+                create: {
+                    productId,
+                    attributeDefinitionId: attr.attributeDefinitionId,
+                    valueString: attr.valueString ?? null,
+                    valueInt: attr.valueInt ?? null,
+                    valueBool: attr.valueBool ?? null,
+                    valueDate: attr.valueDate ? new Date(attr.valueDate) : null,
+                    valueDecimal: attr.valueDecimal ?? null,
+                },
+            });
+        }
+
+
     });
-
     return updatedProduct;
     // } catch (error) {
 
@@ -289,7 +335,7 @@ exports.deleteProduct = async (id) => {
 
         return prisma.product.update({
             where: { id },
-            data: { isDeleted: true, isActive: false }
+            data: { isActive: false }
         });
 
     } catch (error) {
@@ -343,7 +389,10 @@ exports.searchProducts = async ({ query = '', sortBy = 'alphabetical', orderDire
             category: true,
             user: {
                 select: { id: true, name: true, email: true }
-            }
+            },
+            attributes: {
+                include: { attributeDefinition: true },
+            },
         },
         orderBy: orderByClause,
 
@@ -381,7 +430,10 @@ exports.fetchProductsByTag = async (req, res) => {
                 category: true,
                 user: {
                     select: { id: true, name: true, email: true }
-                }
+                },
+                attributes: {
+                    include: { attributeDefinition: true },
+                },
             },
         });
 
@@ -408,7 +460,10 @@ exports.fetchProductsByCategorySlug = async (req, res) => {
                 category: true,
                 user: {
                     select: { id: true, name: true, email: true }
-                }
+                },
+                attributes: {
+                    include: { attributeDefinition: true },
+                },
             },
         });
 
@@ -438,7 +493,10 @@ exports.fetchProductsBySubcategorySlug = async (req, res) => {
                 category: true,
                 user: {
                     select: { id: true, name: true, email: true }
-                }
+                },
+                attributes: {
+                    include: { attributeDefinition: true },
+                },
             },
         });
 
@@ -478,6 +536,9 @@ exports.getAllActiveProducts = async ({ page = 1, limit = 10, sort = 'desc', sea
                             subcategories: true
                         }
                     },
+                    attributes: {
+                        include: { attributeDefinition: true },
+                    },
                     user: {
                         select: { id: true, name: true, email: true }
                     }
@@ -506,45 +567,50 @@ exports.getAllActiveProducts = async ({ page = 1, limit = 10, sort = 'desc', sea
 
 exports.getAllDeleteProducts = async ({ page = 1, limit = 10, sort = 'desc', search = '', categoryId }) => {
     // try {
-        const skip = (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
-        const [products, total] = await Promise.all([
-            prisma.product.findMany({
-                where: {
-                    isDeleted: true,
-                },
+    const [products, total] = await Promise.all([
+        prisma.product.findMany({
+            where: {
+                isActive: false,
+            },
 
-                include: {
-                    media: true,
-                    stock: true,
-                    tags: true,
-                    reviews: true,
-                    seoMeta: true,
-                    category: {
-                        include: {
-                            subcategories: true
-                        }
-                    },
-                    user: {
-                        select: { id: true, name: true, email: true }
+            include: {
+                media: true,
+                stock: true,
+                tags: true,
+                reviews: true,
+                seoMeta: true,
+                category: {
+                    include: {
+                        subcategories: true
                     }
                 },
-                orderBy: { createdAt: sort },
-                skip,
-                take: limit,
-            }),
-            prisma.product.count({ where:{
-                isDeleted:true
-            } }),
-        ]);
+                attributes: {
+                    include: { attributeDefinition: true },
+                },
+                user: {
+                    select: { id: true, name: true, email: true }
+                }
+            },
+            orderBy: { createdAt: sort },
+            skip,
+            take: limit,
+        }),
+        prisma.product.count({
+            where: {
+                isActive: false
+            }
+        }),
+    ]);
 
-        return {
-            success: true,
-            page,
-            totalPages: Math.ceil(total / limit),
-            totalItems: total,
-            products: products,
-        };
+    return {
+        success: true,
+        page,
+        totalPages: Math.ceil(total / limit),
+        totalItems: total,
+        products: products,
+    };
     // } catch (err) {
 
     //     throw new ApiError(500, Messages.PRODUCT.FETCH_PRODUCT_FAILED);

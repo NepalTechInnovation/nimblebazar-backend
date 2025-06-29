@@ -11,78 +11,117 @@ exports.createOrder = async (orderData, userId) => {
     notes,
     deliveryDate,
     couponCode,
-    cartId
+    cartId,
+
   } = orderData;
   const parsedDate = new Date(deliveryDate);
+  
+  const order = await prisma.$transaction(async (tx) => {
+    for (const it of items) {
+      const { productId, attributeIds = [] } = it;
+    console.log(productId);
+      const valid = await tx.productAttributeValue.findMany({
+        where: {
+          id: { in: attributeIds },
+          productId: productId,
+        },
+        select: { id: true },
+      });
 
-  const order = await prisma.order.create({
-    data: {
-      user: {
-        connect: {
-          id: userId
-        }
-      },
-      shippingAddress: {
-        connect: {
-          id: shippingAddress
-        }
-      },
-      billingAddress: {
-        connect: {
-          id: billingAddress
-        }
-      },
-      shippingMethod,
-      totalAmount,
-      deliveryDate: parsedDate,
-      notes,
-      items: {
-        create: items.map(item => ({
-          productId: item.productId,
-          quantity: item.quantity,
-          price: item.price,
-        }))
+      if (valid.length !== attributeIds.length) {
+        throw new Error(
+          `One or more attributeIds are invalid for product ${productId}`
+        );
       }
-    }
-  });
-  await Promise.all(
-    items.map(item =>
-      prisma.stock.update({
-        where: { productId: item.productId },
-        data: {
-          quantity: {
-            decrement: item.quantity
+      await tx.order.create({
+      data: {
+        user: {
+          connect: {
+            id: userId
           }
+        },
+        shippingAddress: {
+          connect: {
+            id: shippingAddress
+          }
+        },
+        billingAddress: {
+          connect: {
+            id: billingAddress
+          }
+        },
+        shippingMethod,
+        totalAmount,
+        deliveryDate: parsedDate,
+        notes,
+        items: {
+          create: items.map(item => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            price: item.price,
+            attributes: {
+              create: [...new Set(attributeIds ?? [])].map((id) => ({
+                productAttributeValueId: id,
+              })),
+            },
+          }))
         }
-      })
-    )
-  );
-  const existingCoupon = await prisma.coupon.findFirst({
-    where: {
-      code: couponCode
-    }
-  });
-  await prisma.coupon.update({
-    where: { id: existingCoupon.id },
-    data: {
-      couponCount: {
-        decrement: 1,
       },
-    },
-  });
-  if (cartId) {
-    const existingCart = await prisma.cart.findFirst({
-      where: {
-        id: cartId
+      include: {
+        attributes: {
+          include: {
+            productAttributeValue: {
+              include: { attributeDefinition: true },
+            },
+          },
+        },
       }
     });
-    if (existingCart) {
-      await prisma.cart.delete({
-        where: { id: cartId },
-      });
     }
+    
+    await Promise.all(
+      items.map(item =>
+        tx.stock.update({
+          where: { productId: item.productId },
+          data: {
+            quantity: {
+              decrement: item.quantity
+            }
+          }
+        })
+      )
+    );
+    const existingCoupon = await tx.coupon.findFirst({
+      where: {
+        code: couponCode
+      }
+    });
+    await tx.coupon.update({
+      where: { id: existingCoupon.id },
+      data: {
+        couponCount: {
+          decrement: 1,
+        },
+      },
+    });
+    if (cartId) {
+      const existingCart = await tx.cart.findFirst({
+        where: {
+          id: cartId
+        }
+      });
+      if (existingCart) {
+        await tx.cart.delete({
+          where: { id: cartId },
+        });
+      }
 
-  }
+    }
+  });
+
+
+
+
 
   return order;
 };
@@ -97,7 +136,7 @@ exports.getOrderById = async (id) => {
         include: {
           product: {
             include: {
-               
+
               media: true,
             }
           }

@@ -7,7 +7,7 @@ const { authorizeRoles, authorize } = require('../../middleware/authorize');
 const Roles = require('../../constants/roleEnum');
 const productAttributeController = require('../../controllers/product/productAttributeController');
 const { validateProductAttribute } = require('../../validators/product/productAttributeValidator');
-
+const productAttributeValueController = require('../../controllers/product/productAttributeValueController');
 router.post('/create-product', authorize, authorizeRoles('SUPERADMIN'), validate, validateProduct, productController.createProduct);
 router.get('/fetch-all-products', productController.getAllProducts);
 router.get('/fetch-all-active-products', productController.fetchAllActiveProducts);
@@ -26,4 +26,10 @@ router.post('/add-product-attribute', authorize, authorizeRoles('SUPERADMIN'), v
 router.get('/fetch-attribute-by-id/:id', productAttributeController.getAttributeById);
 router.get('/fetch-attribute', productAttributeController.getAllAttributes);
 router.delete('/delete-attribute/:id', productAttributeController.deleteAttribute);
+
+//product product_attribute_values
+router.post('/add-product-attribute-value', authorize, authorizeRoles('SUPERADMIN'), validate, validateProductAttribute, productAttributeValueController.createProductAttributeValue);
+router.get('/fetch-attribute-by-id/:id', productAttributeValueController.getAttributeById);
+router.get('/fetch-attribute', productAttributeValueController.getAllProductAttributeValue);
+router.delete('/delete-attribute/:id', productAttributeValueController.deleteAttribute);
 module.exports = router;

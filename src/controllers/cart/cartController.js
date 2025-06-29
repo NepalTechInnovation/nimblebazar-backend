@@ -14,10 +14,10 @@ exports.getCart = asyncWrapper(async (req, res, next) => {
 });
 
 exports.addToCart =asyncWrapper( async (req, res, next) => {
-    const { quantity, productId, total } = req.body;
+    const { quantity, productId, total,attributeIds } = req.body;
 
     try {
-        const item = await cartService.addToCart(req.user.id, quantity,productId, total);
+        const item = await cartService.addToCart(req.user.id, quantity,productId, total,attributeIds);
         res.status(200).json(new ApiResponse(200, Messages.CART.CREATE_SUCCESS, item, "item"));
     } catch (error) {
         next(error);
@@ -26,10 +26,10 @@ exports.addToCart =asyncWrapper( async (req, res, next) => {
 
 exports.updateCartItem =asyncWrapper( async (req, res, next) => {
     const { itemId } = req.params;
-    const {  quantity, productId, total } = req.body;
+    const {  quantity, productId, total,attributeIds } = req.body;
 
     try {
-        const updatedItem = await cartService.updateCartItem( quantity, productId, total);
+        const updatedItem = await cartService.updateCartItem(itemId, quantity, productId, total, attributeIds);
         res.status(200).json(new ApiResponse(200, Messages.CART.UPDATE_SUCCESS, updatedItem, "item"));
     } catch (error) {
         next(error);

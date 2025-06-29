@@ -141,35 +141,34 @@ model SubCustomization {
 // --- Product and Variant Models ---
 
 model Product {
-  id                String                  @id @default(cuid())
-  name              String
-  slug              String                  @unique
-  description       String
-  featureImage      String?                 @map("feature_image")
-  price             Float                   @default(0)
-  isActive          Boolean                 @default(true) @map("is_active")
-  isDeleted         Boolean                 @default(false) @map("is_deleted")
-  userId            String                  @map("user_id")
-  user              User                    @relation(fields: [userId], references: [id])
-  categoryId        String                  @map("category_id")
-  category          Category                @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  subcategoryId     String?                 @map("sub_category_id")
-  subcategory       Subcategory?            @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
-  rating            Float                   @default(0)
-  reviews           Review[]
-  tags              Tag[]                   @relation("ProductTags")
-  coupons           Coupon[]                @relation("product_coupons")
-  media             ProductMedia[]
-  createdAt         DateTime                @default(now()) @map("created_at")
-  updatedAt         DateTime                @updatedAt @map("updated_at")
-  cartItems         CartItem[]
-  stock             Stock?
-  orderItems        OrderItem[]
-  isFeatured        Boolean                 @default(false) @map("is_featured")
-  wishlistedBy      Wishlist[]
-  seoMeta           SeoMeta?                @relation(fields: [seoMetaId], references: [id])
-  seoMetaId         String?                 @unique @map("seo_meta_id")
-  attributes        ProductAttributeValue[]
+  id            String                  @id @default(cuid())
+  name          String
+  slug          String                  @unique
+  description   String
+  featureImage  String?                 @map("feature_image")
+  price         Float                   @default(0)
+  isActive      Boolean                 @default(true) @map("is_active")
+  userId        String                  @map("user_id")
+  user          User                    @relation(fields: [userId], references: [id])
+  categoryId    String                  @map("category_id")
+  category      Category                @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  subcategoryId String?                 @map("sub_category_id")
+  subcategory   Subcategory?            @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
+  rating        Float                   @default(0)
+  reviews       Review[]
+  tags          Tag[]                   @relation("ProductTags")
+  coupons       Coupon[]                @relation("product_coupons")
+  media         ProductMedia[]
+  createdAt     DateTime                @default(now()) @map("created_at")
+  updatedAt     DateTime                @updatedAt @map("updated_at")
+  cartItems     CartItem[]
+  stock         Stock?
+  orderItems    OrderItem[]
+  isFeatured    Boolean                 @default(false) @map("is_featured")
+  wishlistedBy  Wishlist[]
+  seoMeta       SeoMeta?                @relation(fields: [seoMetaId], references: [id])
+  seoMetaId     String?                 @unique @map("seo_meta_id")
+  attributes    ProductAttributeValue[]
 
   @@map("products")
 }
@@ -177,19 +176,21 @@ model Product {
 model ProductAttributeValue {
   id                    String    @id @default(uuid())
   productId             String
-  attributeDefinitionId String      @map("attribute_definition_id")
-  valueString           String?     @map("value_string")
-  valueInt              Int?        @map("value_int")
-  valueDecimal          Decimal?    @map("value_decimal")
-  valueBool             Boolean?    @map("value_bool")
-  valueDate             DateTime?   @map("value_date")
+  attributeDefinitionId String    @map("attribute_definition_id")
+  valueString           String?   @map("value_string")
+  valueInt              Int?      @map("value_int")
+  valueDecimal          Decimal?  @map("value_decimal")
+  valueBool             Boolean?  @map("value_bool")
+  valueDate             DateTime? @map("value_date")
 
   product             Product             @relation(fields: [productId], references: [id])
   attributeDefinition AttributeDefinition @relation(fields: [attributeDefinitionId], references: [id])
 
+  CartItemAttribute  CartItemAttribute[]
+  OrderItemAttribute OrderItemAttribute[]
+
   @@unique([productId, attributeDefinitionId])
   @@map("product_attribute_values")
-  
 }
 
 model AttributeDefinition {
@@ -241,13 +242,14 @@ model Cart {
 }
 
 model CartItem {
-  id        String  @id @default(cuid())
-  cartId    String  @map("cart_id")
-  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  quantity  Int
-  total     Float
-  productId String  @map("product_id")
-  product   Product @relation(fields: [productId], references: [id])
+  id         String              @id @default(cuid())
+  cartId     String              @map("cart_id")
+  cart       Cart                @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  quantity   Int
+  total      Float
+  productId  String              @map("product_id")
+  product    Product             @relation(fields: [productId], references: [id])
+  attributes CartItemAttribute[]
 
   @@map("cart_items")
 }
@@ -275,13 +277,14 @@ model Order {
 }
 
 model OrderItem {
-  id        String  @id @default(cuid())
-  orderId   String  @map("order_id")
-  productId String  @map("product_id")
-  quantity  Int
-  price     Decimal @map("price") // price per unit at time of purchase
-  order     Order   @relation(fields: [orderId], references: [id])
-  product   Product @relation(fields: [productId], references: [id])
+  id         String               @id @default(cuid())
+  orderId    String               @map("order_id")
+  productId  String               @map("product_id")
+  quantity   Int
+  price      Decimal              @map("price") // price per unit at time of purchase
+  order      Order                @relation(fields: [orderId], references: [id])
+  product    Product              @relation(fields: [productId], references: [id])
+  attributes OrderItemAttribute[]
 
   @@map("order_items")
 }
@@ -360,8 +363,6 @@ model ProductMedia {
   @@index([productId]) // Index for faster lookups
   @@map("product_media")
 }
-
-
 
 model Stock {
   id        String   @id @default(uuid())
@@ -474,4 +475,27 @@ model SeoMeta {
   Product         Product?
 
   @@map("seo_metas")
+}
+
+model CartItemAttribute {
+  id                      String @id @default(uuid())
+  cartItemId              String @map("cart_item_id")
+  productAttributeValueId String @map("product_attribute_value_id")
+
+  cartItem              CartItem              @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
+  productAttributeValue ProductAttributeValue @relation(fields: [productAttributeValueId], references: [id], onDelete: Cascade)
+
+  @@unique([cartItemId, productAttributeValueId])
+  @@map("cart_item_attributes")
+}
+
+model OrderItemAttribute {
+  id                      String @id @default(uuid())
+  orderItemId             String
+  productAttributeValueId String
+
+  orderItem             OrderItem             @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  productAttributeValue ProductAttributeValue @relation(fields: [productAttributeValueId], references: [id], onDelete: Cascade)
+
+  @@unique([orderItemId, productAttributeValueId])
 }

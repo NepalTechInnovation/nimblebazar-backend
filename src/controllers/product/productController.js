@@ -54,11 +54,11 @@ const getProductBySlug = async (req, res, next) => {
 };
 
 const updateProduct = asyncWrapper(async (req, res) => {
-  const product = await productService.updateProduct(req.params.productId, req.body, req.user.id);
+  const updatedProduct = await productService.updateProduct(req.params.productId, req.body, req.user.id);
 
   res
     .status(200)
-    .json(new ApiResponse(200, Messages.PRODUCT.UPDATE_SUCCESS, product));
+    .json(new ApiResponse(200, Messages.PRODUCT.UPDATE_SUCCESS, updatedProduct));
 });
 
 

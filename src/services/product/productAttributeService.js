@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const Messages = require('../../constants/messages');
+const ApiError = require('../../utils/ApiError');
 const prisma = new PrismaClient();
 
 
@@ -21,8 +22,11 @@ exports.getAllAttributes = async (req, res) => {
         const { categoryId } = req.query
         const attributes = await prisma.attributeDefinition.findMany({
             where: categoryId ? { categoryId } : undefined,
-            orderBy: { name: 'asc' }
-        })
+            orderBy: { name: 'asc' },
+            include:{
+                category:true
+            }
+        },)
         return attributes;
     } catch (error) {
         throw new ApiError(500, Messages.GENERAL.SOMETHING_WENT_WRONG);
