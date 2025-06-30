@@ -15,11 +15,10 @@ exports.createOrder = async (orderData, userId) => {
 
   } = orderData;
   const parsedDate = new Date(deliveryDate);
-  
+
   const order = await prisma.$transaction(async (tx) => {
     for (const it of items) {
       const { productId, attributeIds = [] } = it;
-    console.log(productId);
       const valid = await tx.productAttributeValue.findMany({
         where: {
           id: { in: attributeIds },
@@ -34,51 +33,44 @@ exports.createOrder = async (orderData, userId) => {
         );
       }
       await tx.order.create({
-      data: {
-        user: {
-          connect: {
-            id: userId
-          }
-        },
-        shippingAddress: {
-          connect: {
-            id: shippingAddress
-          }
-        },
-        billingAddress: {
-          connect: {
-            id: billingAddress
-          }
-        },
-        shippingMethod,
-        totalAmount,
-        deliveryDate: parsedDate,
-        notes,
-        items: {
-          create: items.map(item => ({
-            productId: item.productId,
-            quantity: item.quantity,
-            price: item.price,
-            attributes: {
-              create: [...new Set(attributeIds ?? [])].map((id) => ({
-                productAttributeValueId: id,
-              })),
-            },
-          }))
-        }
-      },
-      include: {
-        attributes: {
-          include: {
-            productAttributeValue: {
-              include: { attributeDefinition: true },
-            },
+        data: {
+          user: {
+            connect: {
+              id: userId
+            }
           },
+          shippingAddress: {
+            connect: {
+              id: shippingAddress
+            }
+          },
+          billingAddress: {
+            connect: {
+              id: billingAddress
+            }
+          },
+          shippingMethod,
+          totalAmount,
+          deliveryDate: parsedDate,
+          notes,
+          items: {
+            create: items.map(item => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              price: item.price,
+              attributes: {
+                create: [...new Set(attributeIds ?? [])].map((id) => ({
+                  productAttributeValueId: id,
+                })),
+              },
+            }))
+          }
         },
-      }
-    });
+        include: {
+        }
+      });
     }
-    
+
     await Promise.all(
       items.map(item =>
         tx.stock.update({
@@ -96,14 +88,17 @@ exports.createOrder = async (orderData, userId) => {
         code: couponCode
       }
     });
-    await tx.coupon.update({
-      where: { id: existingCoupon.id },
-      data: {
-        couponCount: {
-          decrement: 1,
+    if (existingCoupon) {
+      await tx.coupon.update({
+        where: { id: existingCoupon.id },
+        data: {
+          couponCount: {
+            decrement: 1,
+          },
         },
-      },
-    });
+      });
+    }
+
     if (cartId) {
       const existingCart = await tx.cart.findFirst({
         where: {
@@ -118,11 +113,6 @@ exports.createOrder = async (orderData, userId) => {
 
     }
   });
-
-
-
-
-
   return order;
 };
 
@@ -134,6 +124,13 @@ exports.getOrderById = async (id) => {
       items: {
 
         include: {
+          attributes: {
+            include: {
+              productAttributeValue: {
+                include: { attributeDefinition: true },
+              },
+            },
+          },
           product: {
             include: {
 
@@ -221,6 +218,13 @@ exports.fetchUserOrder = async (req, res) => {
       items: {
 
         include: {
+          attributes: {
+            include: {
+              productAttributeValue: {
+                include: { attributeDefinition: true },
+              },
+            },
+          },
           product: {
             include: {
               media: true,

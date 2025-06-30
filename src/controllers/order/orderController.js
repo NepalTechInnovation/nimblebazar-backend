@@ -4,15 +4,15 @@ const ApiResponse = require('../../utils/ApiResponse');
 const asyncWrapper = require("../../middleware/asyncWrapper");
 const Messages = require('../../constants/messages');
 exports.createOrder = async (req, res) => {
-    try {
+    // try {
         const order = await orderService.createOrder(req.body, req.user.id);
         res
             .status(200)
             .json(new ApiResponse(200, Messages.ORDER.CREATE_SUCCESS, order));
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: 'Failed to create order' });
-    }
+    // } catch (err) {
+    //     console.error(err);
+    //     res.status(500).json({ message: 'Failed to create order' });
+    // }
 };
 
 
